@@ -26,7 +26,8 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
   const [firstName, setFirstName] = useState('')
   const [lastInitial, setLastInitial] = useState('')
   const [platform, setPlatform] = useState('')
-  const [experienceType, setExperienceType] = useState('dating')
+  // NOTE: values updated to match DB CHECK constraints for experience_type
+  const [experienceType, setExperienceType] = useState<'first_date' | 'multiple_dates' | 'relationship' | 'situationship' | 'talking_stage'>('first_date')
   const [signalType, setSignalType] = useState<'positive' | 'neutral' | 'negative'>('neutral')
   const [description, setDescription] = useState('')
   
@@ -34,6 +35,10 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
   const [contentWarnings, setContentWarnings] = useState<string[]>([])
 
   function handleDescriptionChange(value: string) {
+    // Limit is 200 characters (DB constraint)
+    if (value.length > 200) {
+      value = value.slice(0, 200)
+    }
     setDescription(value)
     const check = checkProhibitedContent(value)
     setContentWarnings(check.reasons)
@@ -70,6 +75,9 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
     try {
       const supabase = createClient()
       
+      // Map front-end overall signal to DB values
+      const overallSignalDb = signalType === 'positive' ? 'green' : signalType === 'neutral' ? 'yellow' : 'red'
+
       // Insert the signal (will go to moderation)
       const { error } = await supabase
         .from('signals')
@@ -78,10 +86,14 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
           subject_first_name: firstName.trim(),
           subject_last_initial: lastInitial.trim().toUpperCase(),
           subject_platform: platform || null,
-          experience_type: experienceType,
-          overall_signal: signalType,
+          experience_type: experienceType, // now uses DB values
+          overall_signal: overallSignalDb, // DB expects 'green'|'yellow'|'red'
           description: description,
-          status: 'pending',
+          // moderation_status is used in admin views; set pending here
+          moderation_status: 'pending',
+          // status must be one of ('active','under_review','hidden','removed')
+          // Put into under_review so it is not publicly visible until approved
+          status: 'under_review',
         })
 
       if (error) {
@@ -115,7 +127,7 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
             setFirstName('')
             setLastInitial('')
             setPlatform('')
-            setExperienceType('dating')
+            setExperienceType('first_date')
             setDescription('')
             setSignalType('neutral')
           }}>
@@ -224,14 +236,14 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
           <select
             id="experienceType"
             value={experienceType}
-            onChange={(e) => setExperienceType(e.target.value)}
+            onChange={(e) => setExperienceType(e.target.value as any)}
             className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
           >
-            <option value="dating">Dating</option>
+            <option value="first_date">First date</option>
+            <option value="multiple_dates">Multiple dates</option>
             <option value="relationship">Relationship</option>
-            <option value="casual">Casual</option>
-            <option value="friendship">Friendship</option>
-            <option value="professional">Professional</option>
+            <option value="situationship">Situationship / Casual</option>
+            <option value="talking_stage">Talking stage / Friendship</option>
           </select>
         </div>
 
@@ -274,11 +286,11 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
             rows={4}
-            maxLength={500}
+            maxLength={200}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Keep it factual and respectful</span>
-            <span>{description.length}/500</span>
+            <span>{description.length}/200</span>
           </div>
         </div>
 
