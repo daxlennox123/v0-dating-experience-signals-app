@@ -11,18 +11,21 @@ interface SignalsPageProps {
 
 export default async function AdminSignalsPage({ searchParams }: SignalsPageProps) {
   const params = await searchParams
-  const status = params.status || 'pending'
+  const filterStatus = params.status || 'under_review'
   const supabase = await createClient()
+
+  // Map filter to actual DB status values
+  const dbStatus = filterStatus === 'pending' ? 'under_review' : filterStatus
 
   // Get signals with the selected status
   const { data: signals, error } = await supabase
     .from('signals')
     .select(`
       *,
-      author:profiles!author_id(id, display_name, verification_status, trust_score)
+      author:profiles!author_id(id, email, account_status, role)
     `)
-    .eq('moderation_status', status)
-    .order('created_at', { ascending: status === 'pending' })
+    .eq('status', dbStatus)
+    .order('created_at', { ascending: dbStatus === 'under_review' })
     .limit(50)
 
   if (error) {
@@ -40,19 +43,24 @@ export default async function AdminSignalsPage({ searchParams }: SignalsPageProp
 
       {/* Status Tabs */}
       <div className="flex items-center gap-2 mb-6">
-        <Link href="/admin/signals?status=pending">
-          <Button variant={status === 'pending' ? 'default' : 'outline'} size="sm">
-            Pending
+        <Link href="/admin/signals?status=under_review">
+          <Button variant={dbStatus === 'under_review' ? 'default' : 'outline'} size="sm">
+            Pending Review
           </Button>
         </Link>
-        <Link href="/admin/signals?status=approved">
-          <Button variant={status === 'approved' ? 'default' : 'outline'} size="sm">
-            Approved
+        <Link href="/admin/signals?status=active">
+          <Button variant={dbStatus === 'active' ? 'default' : 'outline'} size="sm">
+            Active
           </Button>
         </Link>
-        <Link href="/admin/signals?status=rejected">
-          <Button variant={status === 'rejected' ? 'default' : 'outline'} size="sm">
-            Rejected
+        <Link href="/admin/signals?status=hidden">
+          <Button variant={dbStatus === 'hidden' ? 'default' : 'outline'} size="sm">
+            Hidden
+          </Button>
+        </Link>
+        <Link href="/admin/signals?status=removed">
+          <Button variant={dbStatus === 'removed' ? 'default' : 'outline'} size="sm">
+            Removed
           </Button>
         </Link>
       </div>

@@ -6,22 +6,25 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, X, Loader2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { signalColorInfo, formatRelativeTime } from '@/lib/signal-utils'
+import { formatRelativeTime } from '@/lib/signal-utils'
 import { useToast } from '@/hooks/use-toast'
 
 interface SignalModerationCardProps {
   signal: {
     id: string
-    subject_identifier: string
-    signal_color: 'green' | 'yellow' | 'red'
-    context_text: string
-    moderation_status: string
+    subject_first_name: string
+    subject_last_initial: string
+    subject_platform: string | null
+    overall_signal: 'green' | 'yellow' | 'red'
+    experience_type: string
+    description: string
+    status: string
     created_at: string
     author?: {
       id: string
-      display_name: string | null
-      verification_status: string
-      trust_score: number
+      email: string
+      account_status: string
+      role: string
     }
   }
 }
@@ -33,7 +36,13 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
   const [rejectReason, setRejectReason] = useState('')
   const { toast } = useToast()
 
-  const colorInfo = signalColorInfo[signal.signal_color]
+  const signalInfo = {
+    green: { emoji: '👍', label: 'Positive', color: 'var(--signal-green)' },
+    yellow: { emoji: '👋', label: 'Neutral', color: 'var(--signal-yellow)' },
+    red: { emoji: '⚠️', label: 'Negative', color: 'var(--signal-red)' },
+  }
+  
+  const info = signalInfo[signal.overall_signal] || signalInfo.yellow
 
   async function handleApprove() {
     setIsLoading(true)
@@ -42,15 +51,10 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
       
       const { error } = await supabase
         .from('signals')
-        .update({ moderation_status: 'approved' })
+        .update({ status: 'active' })
         .eq('id', signal.id)
 
       if (error) throw error
-
-      // Update author's trust score
-      if (signal.author) {
-        await supabase.rpc('increment_trust_score', { user_id: signal.author.id, amount: 1 })
-      }
 
       toast({ title: 'Signal approved' })
       router.refresh()
@@ -74,9 +78,7 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
       
       const { error } = await supabase
         .from('signals')
-        .update({ 
-          moderation_status: 'rejected',
-        })
+        .update({ status: 'removed' })
         .eq('id', signal.id)
 
       if (error) throw error
@@ -98,20 +100,23 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold ${
-            signal.signal_color === 'green' ? 'bg-signal-green/10 text-[var(--signal-green)]' :
-            signal.signal_color === 'yellow' ? 'bg-signal-yellow/10 text-[var(--signal-yellow)]' :
+            signal.overall_signal === 'green' ? 'bg-signal-green/10 text-[var(--signal-green)]' :
+            signal.overall_signal === 'yellow' ? 'bg-signal-yellow/10 text-[var(--signal-yellow)]' :
             'bg-signal-red/10 text-[var(--signal-red)]'
           }`}>
-            {colorInfo.emoji}
+            {info.emoji}
           </div>
           <div>
-            <p className="font-mono text-sm font-medium">{signal.subject_identifier}</p>
+            <p className="font-medium">{signal.subject_first_name} {signal.subject_last_initial}.</p>
+            {signal.subject_platform && (
+              <p className="text-xs text-muted-foreground">via {signal.subject_platform}</p>
+            )}
             <p className={`text-xs font-medium ${
-              signal.signal_color === 'green' ? 'text-[var(--signal-green)]' :
-              signal.signal_color === 'yellow' ? 'text-[var(--signal-yellow)]' :
+              signal.overall_signal === 'green' ? 'text-[var(--signal-green)]' :
+              signal.overall_signal === 'yellow' ? 'text-[var(--signal-yellow)]' :
               'text-[var(--signal-red)]'
             }`}>
-              {colorInfo.label}
+              {info.label} - {signal.experience_type}
             </p>
           </div>
         </div>
@@ -124,27 +129,29 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
       {signal.author && (
         <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-muted/50">
           <User className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm">{signal.author.display_name || 'Anonymous'}</span>
+          <span className="text-sm">{signal.author.email?.split('@')[0] || 'Anonymous'}</span>
           <span className={`text-xs px-1.5 py-0.5 rounded ${
-            signal.author.verification_status === 'verified' 
+            signal.author.account_status === 'approved' 
               ? 'bg-primary/10 text-primary' 
               : 'bg-yellow-500/10 text-yellow-600'
           }`}>
-            {signal.author.verification_status}
+            {signal.author.account_status}
           </span>
-          <span className="text-xs text-muted-foreground ml-auto">
-            Trust: {signal.author.trust_score}
-          </span>
+          {signal.author.role === 'admin' && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600">
+              admin
+            </span>
+          )}
         </div>
       )}
 
       {/* Content */}
       <div className="mb-4 p-3 rounded-lg bg-muted/30">
-        <p className="text-sm leading-relaxed">{signal.context_text}</p>
+        <p className="text-sm leading-relaxed">{signal.description}</p>
       </div>
 
       {/* Actions */}
-      {signal.moderation_status === 'pending' && (
+      {signal.status === 'under_review' && (
         <>
           {showRejectForm ? (
             <div className="space-y-3">
@@ -205,13 +212,13 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
         </>
       )}
 
-      {signal.moderation_status !== 'pending' && (
+      {signal.status !== 'under_review' && (
         <div className={`text-center text-sm font-medium py-2 rounded-lg ${
-          signal.moderation_status === 'approved' 
+          signal.status === 'active' 
             ? 'bg-primary/10 text-primary' 
             : 'bg-destructive/10 text-destructive'
         }`}>
-          {signal.moderation_status === 'approved' ? 'Approved' : 'Rejected'}
+          {signal.status === 'active' ? 'Active' : signal.status === 'hidden' ? 'Hidden' : 'Removed'}
         </div>
       )}
     </div>

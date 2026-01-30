@@ -86,13 +86,9 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
           subject_first_name: firstName.trim(),
           subject_last_initial: lastInitial.trim().toUpperCase(),
           subject_platform: platform || null,
-          experience_type: experienceType, // now uses DB values
-          overall_signal: overallSignalDb, // DB expects 'green'|'yellow'|'red'
+          experience_type: experienceType,
+          overall_signal: overallSignalDb,
           description: description,
-          // moderation_status is used in admin views; set pending here
-          moderation_status: 'pending',
-          // status must be one of ('active','under_review','hidden','removed')
-          // Put into under_review so it is not publicly visible until approved
           status: 'under_review',
         })
 
