@@ -33,7 +33,7 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
   let query = supabase
     .from('signals')
     .select('*')
-    .eq('status', 'approved')
+    .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(50)
 
