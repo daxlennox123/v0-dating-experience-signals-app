@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Shield, ShieldAlert, ShieldOff, User } from 'lucide-react'
+import { Search, Shield, ShieldAlert, ShieldOff, User, ImageIcon } from 'lucide-react'
+import Image from 'next/image'
 import { useToast } from '@/hooks/use-toast'
 import type { Profile } from '@/lib/types'
 
@@ -138,6 +139,7 @@ export default function AdminUsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Verification Photo</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Invites</TableHead>
@@ -154,6 +156,22 @@ export default function AdminUsersPage() {
                         <span className="font-medium">{user.email?.split('@')[0] || 'Anonymous'}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </TableCell>
+                    <TableCell>
+                      {user.selfie_url ? (
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border">
+                          <Image 
+                            src={user.selfie_url || "/placeholder.svg"} 
+                            alt="Verification selfie" 
+                            fill 
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-muted/50 flex items-center justify-center">
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Select

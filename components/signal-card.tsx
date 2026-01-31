@@ -338,28 +338,30 @@ export function SignalCard({ signal, currentUserId, isVerified }: SignalCardProp
           <button
             onClick={() => handleVote('green_flag')}
             disabled={isLoading || !isVerified}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${
+            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-all ${
               userVote === 'green_flag' 
-                ? 'text-[var(--signal-green)]' 
-                : 'text-muted-foreground hover:text-[var(--signal-green)]'
+                ? 'bg-emerald-500 text-white' 
+                : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
             } disabled:opacity-50`}
           >
             <ThumbsUp className={`w-4 h-4 ${userVote === 'green_flag' ? 'fill-current' : ''}`} />
-            <span>{greenVotes}</span>
+            <span>Green Flag</span>
+            <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{greenVotes}</span>
           </button>
           
           {/* Red Flag Vote */}
           <button
             onClick={() => handleVote('red_flag')}
             disabled={isLoading || !isVerified}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${
+            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-all ${
               userVote === 'red_flag' 
-                ? 'text-[var(--signal-red)]' 
-                : 'text-muted-foreground hover:text-[var(--signal-red)]'
+                ? 'bg-red-500 text-white' 
+                : 'bg-red-500/10 text-red-600 hover:bg-red-500/20'
             } disabled:opacity-50`}
           >
             <ThumbsDown className={`w-4 h-4 ${userVote === 'red_flag' ? 'fill-current' : ''}`} />
-            <span>{redVotes}</span>
+            <span>Red Flag</span>
+            <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{redVotes}</span>
           </button>
           
           {/* Comments */}
@@ -397,8 +399,8 @@ export function SignalCard({ signal, currentUserId, isVerified }: SignalCardProp
               {comments.map((comment) => (
                 <div key={comment.id} className="bg-muted/30 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium">
-                      {comment.user_email?.split('@')[0] || 'User'}
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Anonymous
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {formatRelativeTime(comment.created_at)}

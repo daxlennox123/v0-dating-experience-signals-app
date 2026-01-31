@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { AlertTriangle, CheckCircle, XCircle, Clock, ImageIcon } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface Report {
@@ -21,9 +22,12 @@ interface Report {
   resolved_by: string | null
   signals?: {
     id: string
-    subject_name_hash: string
-    signal_type: string
-    narrative: string
+    subject_first_name: string
+    subject_last_initial: string | null
+    subject_full_name: string | null
+    overall_signal: 'green' | 'yellow' | 'red'
+    description: string
+    image_url: string | null
   }
 }
 
@@ -46,9 +50,12 @@ export default function AdminReportsPage() {
         *,
         signals (
           id,
-          subject_name_hash,
-          signal_type,
-          narrative
+          subject_first_name,
+          subject_last_initial,
+          subject_full_name,
+          overall_signal,
+          description,
+          image_url
         )
       `)
       .order('created_at', { ascending: false })
@@ -60,6 +67,7 @@ export default function AdminReportsPage() {
     const { data, error } = await query
 
     if (error) {
+      console.log('[v0] Reports fetch error:', error)
       toast({ title: 'Failed to fetch reports', variant: 'destructive' })
     } else {
       setReports(data || [])
@@ -106,6 +114,14 @@ export default function AdminReportsPage() {
       'other': 'Other'
     }
     return reasons[reason] || reason
+  }
+
+  const getSignalColor = (signal: 'green' | 'yellow' | 'red') => {
+    switch (signal) {
+      case 'green': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+      case 'yellow': return 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+      case 'red': return 'bg-red-500/10 text-red-600 border-red-500/20'
+    }
   }
 
   return (
@@ -168,14 +184,26 @@ export default function AdminReportsPage() {
                   <div className="border border-border rounded-lg p-4">
                     <p className="text-sm font-medium text-muted-foreground mb-2">Reported Signal</p>
                     <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={report.signals.signal_type === 'green' ? 'default' : report.signals.signal_type === 'yellow' ? 'secondary' : 'destructive'}>
-                        {report.signals.signal_type.toUpperCase()}
+                      <Badge className={getSignalColor(report.signals.overall_signal)}>
+                        {report.signals.overall_signal === 'green' ? 'Positive' : report.signals.overall_signal === 'yellow' ? 'Neutral' : 'Negative'}
                       </Badge>
-                      <span className="text-sm font-mono text-muted-foreground">
-                        #{report.signals.subject_name_hash.slice(0, 8)}
+                      <span className="text-sm font-medium">
+                        {report.signals.subject_full_name || `${report.signals.subject_first_name} ${report.signals.subject_last_initial || ''}.`}
                       </span>
                     </div>
-                    <p className="text-sm line-clamp-3">{report.signals.narrative}</p>
+                    
+                    {report.signals.image_url && (
+                      <div className="relative w-full h-32 rounded-lg overflow-hidden mb-3 border border-border">
+                        <Image 
+                          src={report.signals.image_url || "/placeholder.svg"} 
+                          alt="Signal attachment" 
+                          fill 
+                          className="object-cover" 
+                        />
+                      </div>
+                    )}
+                    
+                    <p className="text-sm line-clamp-3">{report.signals.description}</p>
                   </div>
                 )}
 

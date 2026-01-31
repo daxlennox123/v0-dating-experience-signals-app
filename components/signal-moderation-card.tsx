@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X, Loader2, User } from 'lucide-react'
+import { Check, X, Loader2, User, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatRelativeTime } from '@/lib/signal-utils'
@@ -14,10 +15,13 @@ interface SignalModerationCardProps {
     id: string
     subject_first_name: string
     subject_last_initial: string
+    subject_full_name?: string | null
+    subject_social_handle?: string | null
     subject_platform: string | null
     overall_signal: 'green' | 'yellow' | 'red'
     experience_type: string
     description: string
+    image_url?: string | null
     status: string
     created_at: string
     author?: {
@@ -142,6 +146,18 @@ export function SignalModerationCard({ signal }: SignalModerationCardProps) {
               admin
             </span>
           )}
+        </div>
+      )}
+
+      {/* Image */}
+      {signal.image_url && (
+        <div className="relative w-full h-48 rounded-lg overflow-hidden mb-4 border border-border">
+          <Image 
+            src={signal.image_url || "/placeholder.svg"} 
+            alt="Signal attachment" 
+            fill 
+            className="object-cover" 
+          />
         </div>
       )}
 
