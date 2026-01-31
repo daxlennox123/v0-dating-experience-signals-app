@@ -35,7 +35,7 @@ export default async function AdminLayout({
 
       <AdminNav user={user} profile={profile} />
       
-      <main className="flex-1">
+      <main className="flex-1 max-w-6xl mx-auto px-4 py-6 w-full">
         {children}
       </main>
     </div>

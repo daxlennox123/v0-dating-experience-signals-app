@@ -1,18 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { SignalCard } from '@/components/signal-card'
-import { FeedFilters } from '@/components/feed-filters'
 import { AlertTriangle } from 'lucide-react'
+import Link from 'next/link'
 
 interface FeedPageProps {
   searchParams: Promise<{
-    color?: string
+    filter?: string
     sort?: string
   }>
 }
 
 export default async function FeedPage({ searchParams }: FeedPageProps) {
   const params = await searchParams
+  const filter = params.filter || 'all'
+  const sort = params.sort || 'engagement'
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -34,17 +36,28 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
     .from('signals')
     .select('*')
     .eq('status', 'active')
-    .order('created_at', { ascending: false })
     .limit(50)
 
   // Apply signal type filter
-  if (params.color && params.color !== 'all') {
-    const signalTypeMap: Record<string, string> = {
-      'green': 'positive',
-      'yellow': 'neutral', 
-      'red': 'negative'
-    }
-    query = query.eq('overall_signal', signalTypeMap[params.color] || params.color)
+  if (filter === 'positive') {
+    query = query.eq('overall_signal', 'green')
+  } else if (filter === 'neutral') {
+    query = query.eq('overall_signal', 'yellow')
+  } else if (filter === 'negative') {
+    query = query.eq('overall_signal', 'red')
+  }
+
+  // Apply sorting
+  if (sort === 'engagement') {
+    // Order by total engagement (votes + comments + views)
+    query = query.order('green_flag_votes', { ascending: false })
+      .order('red_flag_votes', { ascending: false })
+      .order('comment_count', { ascending: false })
+      .order('created_at', { ascending: false })
+  } else if (sort === 'newest') {
+    query = query.order('created_at', { ascending: false })
+  } else if (sort === 'oldest') {
+    query = query.order('created_at', { ascending: true })
   }
 
   const { data: signals, error } = await query
@@ -52,6 +65,29 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
   if (error) {
     console.error('[v0] Error fetching signals:', error)
   }
+
+  // Sort by engagement score client-side for more accurate ordering
+  const sortedSignals = signals?.sort((a, b) => {
+    if (sort === 'engagement') {
+      const scoreA = (a.green_flag_votes || 0) + (a.red_flag_votes || 0) + (a.comment_count || 0) * 2 + (a.view_count || 0) * 0.1
+      const scoreB = (b.green_flag_votes || 0) + (b.red_flag_votes || 0) + (b.comment_count || 0) * 2 + (b.view_count || 0) * 0.1
+      return scoreB - scoreA
+    }
+    return 0
+  }) || []
+
+  const filters = [
+    { key: 'all', label: 'All', color: 'bg-primary' },
+    { key: 'positive', label: 'Positive', color: 'bg-[var(--signal-green)]' },
+    { key: 'neutral', label: 'Neutral', color: 'bg-[var(--signal-yellow)]' },
+    { key: 'negative', label: 'Negative', color: 'bg-[var(--signal-red)]' },
+  ]
+
+  const sortOptions = [
+    { key: 'engagement', label: 'Trending' },
+    { key: 'newest', label: 'Newest' },
+    { key: 'oldest', label: 'Oldest' },
+  ]
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -79,12 +115,46 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
       )}
 
       {/* Filters */}
-      <FeedFilters />
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        {/* Signal Type Filters */}
+        <div className="flex gap-2 flex-wrap">
+          {filters.map((f) => (
+            <Link
+              key={f.key}
+              href={`/feed?filter=${f.key}&sort=${sort}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === f.key
+                  ? `${f.color} text-white`
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
+        </div>
+
+        {/* Sort Options */}
+        <div className="flex gap-2 sm:ml-auto">
+          {sortOptions.map((s) => (
+            <Link
+              key={s.key}
+              href={`/feed?filter=${filter}&sort=${s.key}`}
+              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                sort === s.key
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {s.label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* Signals List */}
       <div className="space-y-4">
-        {signals && signals.length > 0 ? (
-          signals.map((signal) => (
+        {sortedSignals && sortedSignals.length > 0 ? (
+          sortedSignals.map((signal) => (
             <SignalCard
               key={signal.id}
               signal={signal}
@@ -94,7 +164,11 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
           ))
         ) : (
           <div className="glass-card rounded-xl p-8 text-center">
-            <p className="text-muted-foreground">No signals yet. Be the first to post!</p>
+            <p className="text-muted-foreground">
+              {filter !== 'all' 
+                ? `No ${filter} signals yet.`
+                : 'No signals yet. Be the first to post!'}
+            </p>
           </div>
         )}
       </div>

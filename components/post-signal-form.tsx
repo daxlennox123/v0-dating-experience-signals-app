@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import React from "react"
+
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, AlertTriangle, Check } from 'lucide-react'
+import { Loader2, AlertTriangle, Check, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,24 +21,27 @@ interface PostSignalFormProps {
 export function PostSignalForm({ userId }: PostSignalFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [step, setStep] = useState<'form' | 'preview' | 'success'>('form')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   
   // Form fields
   const [firstName, setFirstName] = useState('')
-  const [lastInitial, setLastInitial] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [socialHandle, setSocialHandle] = useState('')
   const [platform, setPlatform] = useState('')
-  // NOTE: values updated to match DB CHECK constraints for experience_type
   const [experienceType, setExperienceType] = useState<'first_date' | 'multiple_dates' | 'relationship' | 'situationship' | 'talking_stage'>('first_date')
   const [signalType, setSignalType] = useState<'positive' | 'neutral' | 'negative'>('neutral')
   const [description, setDescription] = useState('')
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   
   // Validation
   const [contentWarnings, setContentWarnings] = useState<string[]>([])
 
   function handleDescriptionChange(value: string) {
-    // Limit is 200 characters (DB constraint)
     if (value.length > 200) {
       value = value.slice(0, 200)
     }
@@ -44,14 +50,69 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
     setContentWarnings(check.reasons)
   }
 
-  function handlePreview() {
-    if (!firstName.trim()) {
-      toast({ title: 'Please enter a first name', variant: 'destructive' })
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      toast({ title: 'Invalid file type. Only JPEG, PNG, WebP, and GIF allowed.', variant: 'destructive' })
       return
     }
 
-    if (!lastInitial.trim() || lastInitial.length !== 1) {
-      toast({ title: 'Please enter a single letter for last initial', variant: 'destructive' })
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large. Maximum 5MB allowed.', variant: 'destructive' })
+      return
+    }
+
+    // Show preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    // Upload to server
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Upload failed')
+      }
+
+      const data = await res.json()
+      setImageUrl(data.url)
+      toast({ title: 'Image uploaded successfully' })
+    } catch (error) {
+      console.error('[v0] Image upload error:', error)
+      toast({ title: 'Failed to upload image', variant: 'destructive' })
+      setImagePreview(null)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  function removeImage() {
+    setImageUrl(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  function handlePreview() {
+    if (!firstName.trim()) {
+      toast({ title: 'Please enter a first name', variant: 'destructive' })
       return
     }
 
@@ -75,20 +136,22 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
     try {
       const supabase = createClient()
       
-      // Map front-end overall signal to DB values
       const overallSignalDb = signalType === 'positive' ? 'green' : signalType === 'neutral' ? 'yellow' : 'red'
+      const lastInitial = lastName.trim() ? lastName.trim()[0].toUpperCase() : null
 
-      // Insert the signal (will go to moderation)
       const { error } = await supabase
         .from('signals')
         .insert({
           author_id: userId,
           subject_first_name: firstName.trim(),
-          subject_last_initial: lastInitial.trim().toUpperCase(),
+          subject_last_initial: lastInitial,
+          subject_full_name: lastName.trim() ? `${firstName.trim()} ${lastName.trim()}` : null,
+          subject_social_handle: socialHandle.trim() || null,
           subject_platform: platform || null,
           experience_type: experienceType,
           overall_signal: overallSignalDb,
           description: description,
+          image_url: imageUrl,
           status: 'under_review',
         })
 
@@ -121,11 +184,14 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
           <Button variant="outline" onClick={() => {
             setStep('form')
             setFirstName('')
-            setLastInitial('')
+            setLastName('')
+            setSocialHandle('')
             setPlatform('')
             setExperienceType('first_date')
             setDescription('')
             setSignalType('neutral')
+            setImageUrl(null)
+            setImagePreview(null)
           }}>
             Post Another
           </Button>
@@ -149,10 +215,13 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
               signalType === 'neutral' ? 'bg-signal-yellow/10 text-[var(--signal-yellow)]' :
               'bg-signal-red/10 text-[var(--signal-red)]'
             }`}>
-              {signalType === 'positive' ? '👍' : signalType === 'neutral' ? '👋' : '⚠️'}
+              {signalType === 'positive' ? '✓' : signalType === 'neutral' ? '~' : '!'}
             </div>
             <div>
-              <p className="font-medium">{firstName} {lastInitial}.</p>
+              <p className="font-medium">
+                {firstName} {lastName.trim() ? lastName.trim() : (lastName.trim() ? lastName.trim()[0] + '.' : '')}
+              </p>
+              {socialHandle && <p className="text-xs text-muted-foreground">@{socialHandle.replace('@', '')}</p>}
               {platform && <p className="text-xs text-muted-foreground">via {platform}</p>}
               <p className={`text-xs font-medium ${
                 signalType === 'positive' ? 'text-[var(--signal-green)]' :
@@ -163,11 +232,18 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
               </p>
             </div>
           </div>
+          
+          {imagePreview && (
+            <div className="relative w-full h-48 rounded-lg overflow-hidden mb-3">
+              <Image src={imagePreview || "/placeholder.svg"} alt="Signal image" fill className="object-cover" />
+            </div>
+          )}
+          
           <p className="text-sm">{description}</p>
         </div>
 
         <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground mb-6">
-          <p><strong>Note:</strong> Once submitted, your signal will be reviewed by moderators before appearing on the feed. The identifier will be partially masked for privacy.</p>
+          <p><strong>Note:</strong> Once submitted, your signal will be reviewed by moderators before appearing on the feed.</p>
         </div>
 
         <div className="flex gap-3">
@@ -195,7 +271,7 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
         {/* Name */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="firstName">First Name</Label>
+            <Label htmlFor="firstName">First Name *</Label>
             <Input
               id="firstName"
               placeholder="e.g., John"
@@ -204,15 +280,25 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="lastInitial">Last Initial</Label>
+            <Label htmlFor="lastName">Last Name (optional)</Label>
             <Input
-              id="lastInitial"
-              placeholder="e.g., S"
-              maxLength={1}
-              value={lastInitial}
-              onChange={(e) => setLastInitial(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+              id="lastName"
+              placeholder="e.g., Smith"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
             />
           </div>
+        </div>
+
+        {/* Social Handle */}
+        <div className="space-y-2">
+          <Label htmlFor="socialHandle">Social Media / Username (optional)</Label>
+          <Input
+            id="socialHandle"
+            placeholder="e.g., @johnsmith or johnsmith123"
+            value={socialHandle}
+            onChange={(e) => setSocialHandle(e.target.value)}
+          />
         </div>
 
         {/* Platform */}
@@ -226,13 +312,60 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
           />
         </div>
 
+        {/* Image Upload */}
+        <div className="space-y-2">
+          <Label>Image (optional)</Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          
+          {imagePreview ? (
+            <div className="relative">
+              <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                <Image src={imagePreview || "/placeholder.svg"} alt="Preview" fill className="object-cover" />
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2"
+                onClick={removeImage}
+                disabled={isUploading}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="w-full h-32 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 hover:border-muted-foreground/50 transition-colors"
+            >
+              {isUploading ? (
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Click to upload image</span>
+                </>
+              )}
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">Max 5MB. JPEG, PNG, WebP, or GIF.</p>
+        </div>
+
         {/* Experience Type */}
         <div className="space-y-2">
           <Label htmlFor="experienceType">Type of Experience</Label>
           <select
             id="experienceType"
             value={experienceType}
-            onChange={(e) => setExperienceType(e.target.value as any)}
+            onChange={(e) => setExperienceType(e.target.value as typeof experienceType)}
             className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
           >
             <option value="first_date">First date</option>
@@ -265,7 +398,7 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
                   type === 'neutral' ? 'text-[var(--signal-yellow)]' :
                   'text-[var(--signal-red)]'
                 }`}>
-                  {type === 'positive' ? '👍' : type === 'neutral' ? '👋' : '⚠️'}
+                  {type === 'positive' ? '✓' : type === 'neutral' ? '~' : '!'}
                 </div>
                 <div className="text-xs font-medium capitalize">{type}</div>
               </button>
@@ -275,10 +408,10 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
 
         {/* Description */}
         <div className="space-y-2">
-          <Label htmlFor="description">Your Experience</Label>
+          <Label htmlFor="description">Your Experience *</Label>
           <Textarea
             id="description"
-            placeholder="Describe your experience. Be factual and avoid identifying information..."
+            placeholder="Describe your experience. Be factual and respectful..."
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
             rows={4}
@@ -311,9 +444,9 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
         <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
           <p className="font-medium mb-1">Remember:</p>
           <ul className="space-y-0.5 list-disc list-inside">
-            <li>No full names or specific addresses</li>
             <li>Be factual - no exaggeration or false claims</li>
             <li>This is for safety, not revenge</li>
+            <li>Images should not contain identifying information</li>
           </ul>
         </div>
 
@@ -321,7 +454,7 @@ export function PostSignalForm({ userId }: PostSignalFormProps) {
         <Button 
           onClick={handlePreview} 
           className="w-full"
-          disabled={!firstName || !lastInitial || !description || contentWarnings.length > 0}
+          disabled={!firstName || !description || contentWarnings.length > 0 || isUploading}
         >
           Preview Signal
         </Button>

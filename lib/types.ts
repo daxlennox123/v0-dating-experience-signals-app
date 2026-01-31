@@ -29,16 +29,23 @@ export interface Signal {
   id: string
   author_id: string
   subject_first_name: string
-  subject_last_initial: string
+  subject_last_initial: string | null
+  subject_full_name: string | null
+  subject_social_handle: string | null
   subject_platform: string | null
   subject_location: string | null
   experience_type: string | null
-  overall_signal: 'positive' | 'neutral' | 'negative'
+  overall_signal: 'green' | 'yellow' | 'red'
   green_flags: string[]
   red_flags: string[]
   description: string
-  status: 'pending' | 'approved' | 'rejected'
+  image_url: string | null
+  status: 'active' | 'under_review' | 'hidden' | 'removed'
   flagged_count: number
+  green_flag_votes: number
+  red_flag_votes: number
+  view_count: number
+  comment_count: number
   claimed_by: string | null
   claim_status: string | null
   claim_response: string | null
