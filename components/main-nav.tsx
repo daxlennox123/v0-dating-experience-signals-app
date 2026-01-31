@@ -47,7 +47,7 @@ export function MainNav({ user, profile }: MainNavProps) {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Shield className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-semibold">SideNote</span>
+              <span className="font-semibold">Coffee</span>
             </Link>
 
             <nav className="flex items-center gap-1">

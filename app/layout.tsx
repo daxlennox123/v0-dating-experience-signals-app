@@ -8,8 +8,8 @@ import './globals.css'
 const _inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'SideNote - Private Dating Signals',
-  description: 'A private, invite-only community for sharing anonymous dating experience signals. Stay informed. Stay safe.',
+  title: 'Coffee',
+  description: 'A private, invite-only community for sharing anonymous dating experiences.',
   robots: 'noindex, nofollow',
     generator: 'v0.app'
 }
